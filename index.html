@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Función Pulmonar</title>
+    <title>Seguimiento de Función Pulmonar</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; border-radius: 10px; border: none; }
         .card-header { background-color: #0d6efd; color: white; border-radius: 10px 10px 0 0 !important; font-weight: bold; }
-        .stat-value { font-size: 2.2rem; font-weight: bold; }
+        .stat-value { font-size: 2.2rem; font-weight: bold; color: #0d6efd; }
         .table-sm th, .table-sm td { font-size: 0.9rem; vertical-align: middle; }
         .text-success-custom { color: #198754; font-weight: bold; }
+        .text-blue-custom { color: #0d6efd; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -23,70 +24,68 @@
     <div class="row">
         <div class="col-md-4">
             <div class="card">
-                <div class="card-header">Agregar Nueva Sesión</div>
+                <div class="card-header">Registrar Datos de Sesión</div>
                 <div class="card-body">
                     <form id="sessionForm">
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <label class="form-label">Número de Sesión (0 = Inicial)</label>
                             <input type="number" class="form-control" id="sesionNum" required>
                         </div>
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <label class="form-label">SpO2 Sin Oxígeno (%)</label>
                             <input type="number" class="form-control" id="spo2Sin" placeholder="Ej. 82" required>
                         </div>
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <label class="form-label">SpO2 con 1L O2 (%)</label>
                             <input type="number" class="form-control" id="spo2Con" placeholder="Ej. 98" required>
                         </div>
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <label class="form-label">Tiempo Caminando (Minutos)</label>
                             <input type="number" class="form-control" id="tiempo" placeholder="Ej. 4" required>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 mb-2">Registrar Sesión</button>
-                        <button type="button" class="btn btn-outline-danger w-100" onclick="borrarTodo()">Borrar Todos los Datos</button>
+                        <button type="submit" class="btn btn-primary w-100 mb-2">Guardar Sesión</button>
+                        <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="borrarTodo()">Borrar Todos los Datos</button>
                     </form>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-header bg-success">Calculadora de Sesiones Necesarias</div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label font-weight-bold">¿Cuántos minutos quieres que aguante?</label>
+                <div class="card-header bg-success">Calculadora de Sesiones Requeridas</div>
+                <div class="card-body text-center">
+                    <div class="mb-3 text-start">
+                        <label class="form-label fw-bold">Meta de tiempo a alcanzar:</label>
                         <div class="input-group">
                             <input type="number" class="form-control" id="metaMinutos" value="30" oninput="actualizarDashboard()">
                             <span class="input-group-text">minutos</span>
                         </div>
                     </div>
-                    <div class="text-center mt-3">
-                        <h5>Sesiones Totales Requeridas:</h5>
-                        <p class="stat-value text-primary" id="sesionesTotalesMeta">--</p>
-                        <p class="text-muted" id="sesionesFaltantesTxt">Te faltan: -- sesiones</p>
-                    </div>
+                    <p class="mb-1 text-muted">Para caminar ese tiempo manteniendo la saturación actual de 82% necesitará llegar a la:</p>
+                    <div class="stat-value text-success mb-2" id="sesionesTotalesMeta">--</div>
+                    <small class="text-secondary d-block" id="sesionesFaltantesTxt">Faltan: -- sesiones adicionales</small>
                 </div>
             </div>
         </div>
 
         <div class="col-md-8">
             <div class="card">
-                <div class="card-header bg-dark">Gráfica de Evolución</div>
+                <div class="card-header bg-dark">Gráfica de Tendencia Real</div>
                 <div class="card-body">
                     <canvas id="progresoChart" height="120"></canvas>
                 </div>
             </div>
 
             <div class="card">
-                <div class="card-header bg-secondary">Historial y Avance por Sesión</div>
+                <div class="card-header bg-secondary">Historial Clínico y Avances Reales</div>
                 <div class="card-body table-responsive">
                     <table class="table table-striped table-sm text-center">
                         <thead>
                             <tr>
                                 <th>Sesión</th>
                                 <th>SpO2 (Sin)</th>
-                                <th>SpO2 (Con)</th>
-                                <th>Tiempo Caminando</th>
-                                <th>+ Minutos (vs Ant)</th>
-                                <th>+ % (vs Ant)</th>
+                                <th>Mejora SpO2</th>
+                                <th>Tiempo (Min)</th>
+                                <th>Mejora Tiempo</th>
+                                <th>% Cambio Tiempo</th>
                                 <th>Acción</th>
                             </tr>
                         </thead>
@@ -100,12 +99,12 @@
 </div>
 
 <script>
-    // Datos base reales de tu mamá
+    // Carga de datos con la corrección exacta que me indicaste
     let datos = [
-        { sesion: 0, spo2Sin: 62, spo2Con: 92, tiempo: 3 },
-        { sesion: 1, spo2Sin: 72, spo2Con: 94, tiempo: 3 },
-        { sesion: 2, spo2Sin: 82, spo2Con: 96, tiempo: 3 },
-        { sesion: 3, spo2Sin: 82, spo2Con: 98, tiempo: 4 }
+        { sesion: 0, spo2Sin: 62, spo2Con: 92, tiempo: 3 }, // Inicial
+        { sesion: 1, spo2Sin: 72, spo2Con: 94, tiempo: 3 }, // S1: +10% Oxígeno, 0 min tiempo
+        { sesion: 2, spo2Sin: 82, spo2Con: 96, tiempo: 3 }, // S2: +10% Oxígeno, 0 min tiempo
+        { sesion: 3, spo2Sin: 82, spo2Con: 98, tiempo: 4 }  // S3: 0% Oxígeno, +1 min tiempo
     ];
 
     let miGrafica;
@@ -117,79 +116,86 @@
         tbody.innerHTML = '';
         
         datos.forEach((d, index) => {
+            let mejoraO2 = "-";
             let mejoraMinutos = "-";
             let mejoraPorcentaje = "-";
-            let colorClase = "";
+            let claseO2 = "";
+            let claseTiempo = "";
 
             if (index > 0) {
                 let previo = datos[index - 1];
-                let diffMinutos = d.tiempo - previo.tiempo;
                 
+                // Cálculo de Oxígeno sesión por sesión
+                let diffO2 = d.spo2Sin - previo.spo2Sin;
+                if (diffO2 > 0) {
+                    mejoraO2 = `+${diffO2}% SpO2`;
+                    claseO2 = "text-blue-custom";
+                } else {
+                    mejoraO2 = `0%`;
+                    claseO2 = "text-muted";
+                }
+
+                // Cálculo de Tiempo sesión por sesión
+                let diffMinutos = d.tiempo - previo.tiempo;
                 if (diffMinutos > 0) {
                     mejoraMinutos = `+${diffMinutos} min`;
                     let pct = (diffMinutos / previo.tiempo) * 100;
                     mejoraPorcentaje = `+${pct.toFixed(1)}%`;
-                    colorClase = "text-success-custom";
-                } else if (diffMinutos < 0) {
-                    mejoraMinutos = `${diffMinutos} min`;
-                    let pct = (diffMinutos / previo.tiempo) * 100;
-                    mejoraPorcentaje = `${pct.toFixed(1)}%`;
-                    colorClase = "text-danger";
+                    claseTiempo = "text-success-custom";
                 } else {
                     mejoraMinutos = `0 min`;
                     mejoraPorcentaje = `0%`;
-                    colorClase = "text-muted";
+                    claseTiempo = "text-muted";
                 }
             }
 
             tbody.innerHTML += `
                 <tr>
-                    <td><strong>${d.sesion === 0 ? 'Inicial' : d.sesion}</strong></td>
+                    <td><strong>${d.sesion === 0 ? 'Inicial' : 'Sesión ' + d.sesion}</strong></td>
                     <td>${d.spo2Sin}%</td>
-                    <td>${d.spo2Con}%</td>
+                    <td class="${claseO2}">${mejoraO2}</td>
                     <td>${d.tiempo} min</td>
-                    <td class="${colorClase}">${mejoraMinutos}</td>
-                    <td class="${colorClase}">${mejoraPorcentaje}</td>
-                    <td><button class="btn btn-sm btn-danger py-0 px-2" onclick="eliminarFila(${index})">❌</button></td>
+                    <td class="${claseTiempo}">${mejoraMinutos}</td>
+                    <td class="${claseTiempo}">${mejoraPorcentaje}</td>
+                    <td><button type="button" class="btn btn-sm btn-danger py-0 px-2" onclick="eliminarFila(${index})">❌</button></td>
                 </tr>
             `;
         });
 
-        // CALCULAR CUÁNTAS SESIONES FALTAN PARA LA META DINÁMICA
+        // CALCULADORA INVERSA DE METAS
         if (datos.length > 1) {
             const actual = datos[datos.length - 1];
             const metaDefinida = parseFloat(document.getElementById('metaMinutos').value) || 0;
             
-            // Encontrar el último ritmo positivo real de avance por sesión
-            let ritmoAvance = 1; // Por defecto 1 min por sesión si no hay más cambios
+            // Buscar cuál es el ritmo real de ganancia de tiempo (basado en el último incremento detectado)
+            let ritmoAvance = 1; 
             for (let i = 1; i < datos.length; i++) {
                 let diffTiempo = datos[i].tiempo - datos[i-1].tiempo;
                 let diffSesiones = datos[i].sesion - datos[i-1].sesion;
                 if (diffTiempo > 0 && diffSesiones > 0) {
-                    ritmoAvance = diffTiempo / diffSesiones;
+                    ritmoAvance = diffTiempo / diffSesiones; // Esto detecta el +1 min por sesión actual
                 }
             }
 
             if (metaDefinida > actual.tiempo) {
-                let minutosRestantes = metaDefinida - actual.tiempo;
-                let sesionesFaltantes = minutosRestantes / ritmoAvance;
-                let sesionesTotalesNecesarias = actual.sesion + sesionesFaltantes;
+                let minutosFaltantes = metaDefinida - actual.tiempo;
+                let sesionesNecesarias = minutosFaltantes / ritmoAvance;
+                let sesionFinalMeta = actual.sesion + sesionesNecesarias;
 
-                document.getElementById('sesionesTotalesMeta').innerText = Math.ceil(sesionesTotalesNecesarias) + " sesiones";
-                document.getElementById('sesionesFaltantesTxt').innerText = `Te faltan: ${Math.ceil(sesionesFaltantes)} sesiones adicionales`;
+                document.getElementById('sesionesTotalesMeta').innerText = "Sesión " + Math.ceil(sesionFinalMeta);
+                document.getElementById('sesionesFaltantesTxt').innerText = `Faltan: ${Math.ceil(sesionesNecesarias)} sesiones más (avanzando a +${ritmoAvance} min por sesión)`;
             } else {
                 document.getElementById('sesionesTotalesMeta').innerText = "¡Meta Alcanzada!";
-                document.getElementById('sesionesFaltantesTxt').innerText = `Ya camina igual o más de ${metaDefinida} min.`;
+                document.getElementById('sesionesFaltantesTxt').innerText = `Tu mamá ya camina ${actual.tiempo} min.`;
             }
         } else {
             document.getElementById('sesionesTotalesMeta').innerText = "--";
-            document.getElementById('sesionesFaltantesTxt').innerText = "Se necesitan más datos registrados.";
+            document.getElementById('sesionesFaltantesTxt').innerText = "Introduce más datos para calcular.";
         }
 
-        // Gráfica
+        // Gráfica de Tendencia
         const etiquetas = datos.map(d => d.sesion === 0 ? 'Inicial' : `S${d.sesion}`);
         const dataSpo2Sin = datos.map(d => d.spo2Sin);
-        const dataSpo2Con = datos.map(d => d.spo2Con);
         const dataTiempo = datos.map(d => d.tiempo);
 
         if (miGrafica) { miGrafica.destroy(); }
@@ -199,16 +205,16 @@
             data: {
                 labels: etiquetas,
                 datasets: [
-                    { label: 'SpO2 Sin O2 (%)', data: dataSpo2Sin, borderColor: '#dc3545', backgroundColor: '#dc3545', tension: 0.2 },
-                    { label: 'SpO2 Con O2 (%)', data: dataSpo2Con, borderColor: '#0d6efd', backgroundColor: '#0d6efd', tension: 0.2 },
-                    { label: 'Tiempo Caminando', data: dataTiempo, borderColor: '#198754', backgroundColor: '#198754', borderDash: [5, 5], tension: 0.2, yAxisID: 'y1' }
+                    { label: 'Saturación Sin O2 (%)', data: dataSpo2Sin, borderColor: '#0d6efd', backgroundColor: '#0d6efd', tension: 0.1 },
+                    { label: 'Tiempo Caminando (Minutos)', data: dataTiempo, borderColor: '#198754', backgroundColor: '#198754', borderDash: [5, 5], tension: 0.1, yAxisID: 'y1' }
                 ]
             },
             options: {
-                responsive: true, interaction: { mode: 'index', intersect: false },
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
                 scales: {
-                    y: { type: 'linear', position: 'left', min: 50, max: 100, title: { display: true, text: 'Saturación (%)' } },
-                    y1: { type: 'linear', position: 'right', min: 0, max: 10, title: { display: true, text: 'Minutos' }, grid: { drawOnChartArea: false } }
+                    y: { type: 'linear', position: 'left', min: 50, max: 100, title: { display: true, text: 'Saturación SpO2 (%)' } },
+                    y1: { type: 'linear', position: 'right', min: 0, max: 40, title: { display: true, text: 'Tiempo (Minutos)' }, grid: { drawOnChartArea: false } }
                 }
             }
         });
@@ -217,20 +223,22 @@
         document.getElementById('sesionNum').value = sigSesion;
     }
 
+    // Funciones para quitar registros particulares o limpiar todo
     function eliminarFila(index) {
-        if(confirm('¿Seguro que deseas borrar esta sesión?')) {
+        if(confirm('¿Seguro que deseas eliminar este registro de sesión?')) {
             datos.splice(index, 1);
             actualizarDashboard();
         }
     }
 
     function borrarTodo() {
-        if(confirm('¿Estás seguro de que quieres BORRAR TODOS los datos?')) {
+        if(confirm('¿Estás seguro de que quieres BORRAR COMPLETAMENTE la tabla?')) {
             datos = [];
             actualizarDashboard();
         }
     }
 
+    // Manejo del envío del formulario
     document.getElementById('sessionForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const nuevaSesion = {
