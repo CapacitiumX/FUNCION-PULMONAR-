@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Función Pulmonar</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; border-radius: 10px; border: none; }
+        .card-header { background-color: #0d6efd; color: white; border-radius: 10px 10px 0 0 !important; font-weight: bold; }
+        .stat-value { font-size: 2rem; font-weight: bold; color: #198754; }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4 mb-5">
+    <h1 class="text-center mb-4" style="color: #0d6efd;">Evolución de Terapia Pulmonar</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Agregar Nueva Sesión</div>
+                <div class="card-body">
+                    <form id="sessionForm">
+                        <div class="mb-3">
+                            <label class="form-label">Número de Sesión</label>
+                            <input type="number" class="form-control" id="sesionNum" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">SpO2 Sin Oxígeno (%)</label>
+                            <input type="number" class="form-control" id="spo2Sin" placeholder="Ej. 82" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">SpO2 con 1L O2 (%)</label>
+                            <input type="number" class="form-control" id="spo2Con" placeholder="Ej. 98" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tiempo Caminando (Minutos)</label>
+                            <input type="number" class="form-control" id="tiempo" placeholder="Ej. 64" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Registrar Sesión</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-success">Resumen de Mejoría</div>
+                <div class="card-body text-center">
+                    <h5>Mejora en tiempo de caminata</h5>
+                    <p class="stat-value" id="mejoraPorcentaje">0%</p>
+                    <hr>
+                    <h5>Proyección a Sesión 24 (Minutos)*</h5>
+                    <p class="stat-value text-primary" id="proyeccion24">0 min</p>
+                    <small class="text-muted">*Basado en regresión lineal. El cuerpo humano tiene un límite natural de mejora.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-dark">Gráfica de Evolución</div>
+                <div class="card-body">
+                    <canvas id="progresoChart" height="120"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-secondary">Historial de Sesiones</div>
+                <div class="card-body">
+                    <table class="table table-striped text-center">
+                        <thead>
+                            <tr>
+                                <th>Sesión</th>
+                                <th>SpO2 (Sin O2)</th>
+                                <th>SpO2 (Con O2)</th>
+                                <th>Tiempo Caminando</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Datos iniciales proporcionados por ti
+    let datos = [
+        { sesion: 0, spo2Sin: 62, spo2Con: 92, tiempo: 3 },  // Previo a la primera
+        { sesion: 1, spo2Sin: 72, spo2Con: 94, tiempo: 3 },  // Después de la 1ra
+        { sesion: 2, spo2Sin: 82, spo2Con: 95, tiempo: 3 },  // Después de la 2da
+        { sesion: 3, spo2Sin: 82, spo2Con: 98, tiempo: 64 }  // Después de la 3ra
+    ];
+
+    let miGrafica;
+
+    function actualizarDashboard() {
+        // Ordenar datos por sesión
+        datos.sort((a, b) => a.sesion - b.sesion);
+
+        // 1. Actualizar Tabla
+        const tbody = document.getElementById('tablaBody');
+        tbody.innerHTML = '';
+        datos.forEach(d => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${d.sesion === 0 ? 'Inicial' : d.sesion}</td>
+                    <td>${d.spo2Sin}%</td>
+                    <td>${d.spo2Con}%</td>
+                    <td>${d.tiempo} min</td>
+                </tr>
+            `;
+        });
+
+        // 2. Calcular Estadísticas (Porcentaje de mejora de tiempo)
+        const inicial = datos[0];
+        const actual = datos[datos.length - 1];
+        if (inicial.tiempo > 0) {
+            const mejora = ((actual.tiempo - inicial.tiempo) / inicial.tiempo) * 100;
+            document.getElementById('mejoraPorcentaje').innerText = mejora.toFixed(0) + '%';
+        }
+
+        // 3. Regresión Lineal para proyectar la sesión 24 (Tiempo de caminata)
+        let n = datos.length;
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+        datos.forEach(d => {
+            sumX += d.sesion;
+            sumY += d.tiempo;
+            sumXY += d.sesion * d.tiempo;
+            sumXX += d.sesion * d.sesion;
+        });
+        
+        let pendiente = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+        let interseccion = (sumY - pendiente * sumX) / n;
+        
+        let proyeccion = (pendiente * 24) + interseccion;
+        // Si hay muy pocos datos o el salto es muy abrupto, mostramos el cálculo matemático crudo pero acotado
+        if(proyeccion < 0) proyeccion = 0;
+        document.getElementById('proyeccion24').innerText = Math.round(proyeccion) + ' min';
+
+        // 4. Actualizar Gráfica
+        const etiquetas = datos.map(d => d.sesion === 0 ? 'Inicial' : `Sesión ${d.sesion}`);
+        const dataSpo2Sin = datos.map(d => d.spo2Sin);
+        const dataSpo2Con = datos.map(d => d.spo2Con);
+        const dataTiempo = datos.map(d => d.tiempo);
+
+        if (miGrafica) { miGrafica.destroy(); } // Destruir la anterior antes de redibujar
+
+        const ctx = document.getElementById('progresoChart').getContext('2d');
+        miGrafica = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: etiquetas,
+                datasets: [
+                    {
+                        label: 'SpO2 Sin Oxígeno (%)',
+                        data: dataSpo2Sin,
+                        borderColor: '#dc3545',
+                        backgroundColor: '#dc3545',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'SpO2 Con Oxígeno (%)',
+                        data: dataSpo2Con,
+                        borderColor: '#0d6efd',
+                        backgroundColor: '#0d6efd',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Tiempo Caminando (Minutos)',
+                        data: dataTiempo,
+                        borderColor: '#198754',
+                        backgroundColor: '#198754',
+                        borderDash: [5, 5],
+                        tension: 0.3,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: {
+                        type: 'linear', display: true, position: 'left',
+                        title: { display: true, text: 'Saturación SpO2 (%)' },
+                        min: 50, max: 100
+                    },
+                    y1: {
+                        type: 'linear', display: true, position: 'right',
+                        title: { display: true, text: 'Tiempo (Minutos)' },
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+
+        // Preparar el input para la siguiente sesión
+        document.getElementById('sesionNum').value = actual.sesion + 1;
+    }
+
+    // Manejar el formulario
+    document.getElementById('sessionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const nuevaSesion = {
+            sesion: parseInt(document.getElementById('sesionNum').value),
+            spo2Sin: parseFloat(document.getElementById('spo2Sin').value),
+            spo2Con: parseFloat(document.getElementById('spo2Con').value),
+            tiempo: parseFloat(document.getElementById('tiempo').value)
+        };
+        
+        // Revisar si la sesión ya existe y reemplazarla, si no, agregarla
+        const index = datos.findIndex(d => d.sesion === nuevaSesion.sesion);
+        if (index > -1) datos[index] = nuevaSesion;
+        else datos.push(nuevaSesion);
+
+        actualizarDashboard();
+        this.reset();
+    });
+
+    // Iniciar el dashboard
+    actualizarDashboard();
+</script>
+
+</body>
+</html>
