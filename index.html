@@ -10,7 +10,7 @@
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; border-radius: 10px; border: none; }
         .card-header { background-color: #0d6efd; color: white; border-radius: 10px 10px 0 0 !important; font-weight: bold; }
-        .stat-value { font-size: 2rem; font-weight: bold; color: #198754; }
+        .stat-value { font-size: 2.2rem; font-weight: bold; }
         .table-sm th, .table-sm td { font-size: 0.9rem; vertical-align: middle; }
         .text-success-custom { color: #198754; font-weight: bold; }
     </style>
@@ -49,14 +49,20 @@
             </div>
 
             <div class="card">
-                <div class="card-header bg-success">Resumen Global</div>
-                <div class="card-body text-center">
-                    <h5>Mejora Total Acumulada</h5>
-                    <p class="stat-value" id="mejoraPorcentaje">0%</p>
-                    <hr>
-                    <h5>Proyección a Sesión 24 (Minutos)*</h5>
-                    <p class="stat-value text-primary" id="proyeccion24">0 min</p>
-                    <small class="text-muted">*Basado en la tendencia lineal de las sesiones registradas.</small>
+                <div class="card-header bg-success">Calculadora de Sesiones Necesarias</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold">¿Cuántos minutos quieres que aguante?</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="metaMinutos" value="30" oninput="actualizarDashboard()">
+                            <span class="input-group-text">minutos</span>
+                        </div>
+                    </div>
+                    <div class="text-center mt-3">
+                        <h5>Sesiones Totales Requeridas:</h5>
+                        <p class="stat-value text-primary" id="sesionesTotalesMeta">--</p>
+                        <p class="text-muted" id="sesionesFaltantesTxt">Te faltan: -- sesiones</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -94,7 +100,7 @@
 </div>
 
 <script>
-    // Datos corregidos: Sesiones 0, 1 y 2 con 3 minutos; Sesión 3 con 4 minutos
+    // Datos base reales de tu mamá
     let datos = [
         { sesion: 0, spo2Sin: 62, spo2Con: 92, tiempo: 3 },
         { sesion: 1, spo2Sin: 72, spo2Con: 94, tiempo: 3 },
@@ -105,10 +111,8 @@
     let miGrafica;
 
     function actualizarDashboard() {
-        // Ordenar datos numéricamente por sesión
         datos.sort((a, b) => a.sesion - b.sesion);
 
-        // 1. Actualizar Tabla con cálculos sesión por sesión
         const tbody = document.getElementById('tablaBody');
         tbody.innerHTML = '';
         
@@ -146,40 +150,43 @@
                     <td>${d.tiempo} min</td>
                     <td class="${colorClase}">${mejoraMinutos}</td>
                     <td class="${colorClase}">${mejoraPorcentaje}</td>
-                    <td><button class="btn btn-sm btn-danger py-0 px-2" onclick="eliminarFila(${index})" title="Borrar sesión">❌</button></td>
+                    <td><button class="btn btn-sm btn-danger py-0 px-2" onclick="eliminarFila(${index})">❌</button></td>
                 </tr>
             `;
         });
 
-        // 2. Resumen Global (Primera vs Última)
+        // CALCULAR CUÁNTAS SESIONES FALTAN PARA LA META DINÁMICA
         if (datos.length > 1) {
-            const inicial = datos[0];
             const actual = datos[datos.length - 1];
-            if (inicial.tiempo > 0) {
-                const mejoraTotal = ((actual.tiempo - inicial.tiempo) / inicial.tiempo) * 100;
-                document.getElementById('mejoraPorcentaje').innerText = mejoraTotal.toFixed(1) + '%';
+            const metaDefinida = parseFloat(document.getElementById('metaMinutos').value) || 0;
+            
+            // Encontrar el último ritmo positivo real de avance por sesión
+            let ritmoAvance = 1; // Por defecto 1 min por sesión si no hay más cambios
+            for (let i = 1; i < datos.length; i++) {
+                let diffTiempo = datos[i].tiempo - datos[i-1].tiempo;
+                let diffSesiones = datos[i].sesion - datos[i-1].sesion;
+                if (diffTiempo > 0 && diffSesiones > 0) {
+                    ritmoAvance = diffTiempo / diffSesiones;
+                }
+            }
+
+            if (metaDefinida > actual.tiempo) {
+                let minutosRestantes = metaDefinida - actual.tiempo;
+                let sesionesFaltantes = minutosRestantes / ritmoAvance;
+                let sesionesTotalesNecesarias = actual.sesion + sesionesFaltantes;
+
+                document.getElementById('sesionesTotalesMeta').innerText = Math.ceil(sesionesTotalesNecesarias) + " sesiones";
+                document.getElementById('sesionesFaltantesTxt').innerText = `Te faltan: ${Math.ceil(sesionesFaltantes)} sesiones adicionales`;
+            } else {
+                document.getElementById('sesionesTotalesMeta').innerText = "¡Meta Alcanzada!";
+                document.getElementById('sesionesFaltantesTxt').innerText = `Ya camina igual o más de ${metaDefinida} min.`;
             }
         } else {
-            document.getElementById('mejoraPorcentaje').innerText = '0%';
-            document.getElementById('proyeccion24').innerText = '0 min';
+            document.getElementById('sesionesTotalesMeta').innerText = "--";
+            document.getElementById('sesionesFaltantesTxt').innerText = "Se necesitan más datos registrados.";
         }
 
-        // 3. Regresión Lineal para proyección a sesión 24
-        if (datos.length > 1) {
-            let n = datos.length;
-            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-            datos.forEach(d => {
-                sumX += d.sesion; sumY += d.tiempo;
-                sumXY += d.sesion * d.tiempo; sumXX += d.sesion * d.sesion;
-            });
-            let pendiente = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-            let interseccion = (sumY - pendiente * sumX) / n;
-            let proyeccion = (pendiente * 24) + interseccion;
-            if(proyeccion < 0) proyeccion = 0;
-            document.getElementById('proyeccion24').innerText = proyeccion.toFixed(1) + ' min';
-        }
-
-        // 4. Actualizar Gráfica
+        // Gráfica
         const etiquetas = datos.map(d => d.sesion === 0 ? 'Inicial' : `S${d.sesion}`);
         const dataSpo2Sin = datos.map(d => d.spo2Sin);
         const dataSpo2Con = datos.map(d => d.spo2Con);
@@ -206,12 +213,10 @@
             }
         });
 
-        // Sugerir número de la siguiente sesión
         let sigSesion = datos.length > 0 ? datos[datos.length - 1].sesion + 1 : 0;
         document.getElementById('sesionNum').value = sigSesion;
     }
 
-    // Funciones de Borrado
     function eliminarFila(index) {
         if(confirm('¿Seguro que deseas borrar esta sesión?')) {
             datos.splice(index, 1);
@@ -226,7 +231,6 @@
         }
     }
 
-    // Manejar el formulario
     document.getElementById('sessionForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const nuevaSesion = {
@@ -247,7 +251,6 @@
         document.getElementById('tiempo').value = '';
     });
 
-    // Iniciar el sistema
     actualizarDashboard();
 </script>
 
